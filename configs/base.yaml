@@ -1,0 +1,26 @@
+# Default experiment. Any value can be overridden from the CLI, e.g.
+#   uv run python scripts/run_cv.py --set cv.scheme=kfold --set model.head=lgbm
+
+data_dir: null        # null -> $BIOMASS_DATA_DIR
+emb_dir: emb
+runs_dir: runs
+
+backbone: dinov3_large   # dinov3_large | dinov3_base | siglip_so400m | color_stats
+
+embed:
+  split_halves: true     # cut the 2:1 image into two squares
+  flip: true             # add the horizontally mirrored view
+  batch_size: 8
+  weights: null          # local checkpoint file (timm) or directory (SigLIP); null -> hub
+
+cv:
+  scheme: group_date     # kfold | group_date | group_month_state
+  n_splits: 5
+  seeds: [0, 1, 2]
+
+model:
+  head: ridge            # ridge | lgbm
+  target_space: log1p    # raw | log1p
+  formulation: nnls      # independent | sum | diff | nnls
+  nnls_weights: metric   # metric | identity
+  pca_components: 128

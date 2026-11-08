@@ -1,0 +1,28 @@
+# environments
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# competition data, embeddings and anything that contains labels
+data/
+emb/
+runs/
+oof/
+submissions/
+folds.csv
+submission.csv
+*.npy
+*.npz
+*.parquet
+*.pth
+*.pt
+*.safetensors
+
+# notebooks outputs / OS files
+.ipynb_checkpoints/
+.DS_Store
