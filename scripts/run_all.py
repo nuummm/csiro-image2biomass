@@ -85,16 +85,21 @@ def dot_figure(labels, means, stds, title, path: Path) -> None:
     plt.close(fig)
 
 
-def scatter_total(y_true: np.ndarray, y_pred: np.ndarray, path: Path) -> None:
+def calibration_total(y_true: np.ndarray, y_pred: np.ndarray, path: Path, n_bins: int = 10) -> None:
+    """Mean truth vs mean OOF prediction per prediction decile (no per-image labels shown)."""
+    order = np.argsort(y_pred)
+    bins = np.array_split(order, n_bins)
+    pred_mean = np.array([y_pred[b].mean() for b in bins])
+    true_mean = np.array([y_true[b].mean() for b in bins])
     fig, ax = plt.subplots(figsize=(4.5, 4.5))
-    ax.scatter(y_true, y_pred, s=12, alpha=0.6, color=BAR, edgecolors="none")
-    hi = float(max(y_true.max(), y_pred.max())) * 1.05
+    hi = float(max(pred_mean.max(), true_mean.max())) * 1.1
     ax.plot([0, hi], [0, hi], color=MUTED, lw=1, ls="--")
+    ax.plot(pred_mean, true_mean, "o-", color=BAR, ms=5, lw=1)
     ax.set_xlim(0, hi)
     ax.set_ylim(0, hi)
-    ax.set_xlabel("true Dry_Total_g", color=MUTED)
-    ax.set_ylabel("OOF prediction", color=MUTED)
-    ax.set_title("Base config, first seed", loc="left", color=INK)
+    ax.set_xlabel("mean OOF prediction, Dry_Total_g", color=MUTED)
+    ax.set_ylabel("mean true value", color=MUTED)
+    ax.set_title(f"Base config, first seed ({n_bins} bins)", loc="left", color=INK)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     fig.tight_layout()
@@ -166,10 +171,12 @@ def main(argv: list[str] | None = None) -> None:
         lines += ["## Per-target R² (base config, first seed)", ""]
         lines += ["| " + " | ".join(TARGETS) + " |", "|" + "---|" * len(TARGETS)]
         lines += ["| " + " | ".join(f"{per_t[t]:.4f}" for t in TARGETS) + " |", ""]
-        scatter_total(
-            Y[:, TARGETS.index(TOTAL)], base_run["oof"][first][:, -1], fig_dir / "oof_total.png"
+        calibration_total(
+            Y[:, TARGETS.index(TOTAL)],
+            base_run["oof"][first][:, TARGETS.index(TOTAL)],
+            fig_dir / "oof_total_binned.png",
         )
-        lines += ["![OOF vs truth for Total](figures/oof_total.png)", ""]
+        lines += ["![Binned OOF calibration for Total](figures/oof_total_binned.png)", ""]
 
         members = [
             r

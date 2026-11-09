@@ -1,7 +1,8 @@
 """Cross-validated training of light heads on frozen embeddings.
 
 Inside each fold, everything that learns from data (scaler, PCA, alpha search,
-early stopping) only sees the training part of that fold. Predictions are
+early stopping) only sees the training part of that fold, and the alpha search
+and the early-stopping hold-out respect the same groups as the outer CV. Predictions are
 moved back to the raw scale, then the output formulation is applied, so the
 OOF matrix is directly comparable with the competition metric.
 """
@@ -12,12 +13,13 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.model_selection import GroupShuffleSplit, ShuffleSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from biomass.constraints import FORMULATIONS, compose, fitted_columns
+from biomass.folds import assign_groups
 from biomass.metric import r2_per_target, weighted_r2
 
 HEADS = ("ridge", "lgbm")
@@ -92,38 +94,64 @@ def make_preprocessor(n_train: int, dim: int, cfg: CVConfig) -> Pipeline:
     return Pipeline(steps)
 
 
+def select_ridge_alphas(z, y, groups, alphas, seed: int, n_splits: int = 5) -> np.ndarray:
+    """Per-target alpha by grouped CV inside the training part.
+
+    Without groups (plain KFold) this is RidgeCV's efficient leave-one-out.
+    With groups, leave-one-out would keep images of the same sampling event on
+    both sides and favour small alphas, so inner folds keep groups together.
+    """
+    if groups is None or len(np.unique(groups)) < 2:
+        return np.atleast_1d(RidgeCV(alphas=alphas, alpha_per_target=True).fit(z, y).alpha_)
+    n_inner = min(n_splits, len(np.unique(groups)))
+    inner = assign_groups(np.asarray(groups), n_inner, seed)
+    sse = np.zeros((len(alphas), y.shape[1]))
+    for k in range(n_inner):
+        tr, va = inner != k, inner == k
+        for a, alpha in enumerate(alphas):
+            pred = Ridge(alpha=alpha).fit(z[tr], y[tr]).predict(z[va]).reshape(-1, y.shape[1])
+            sse[a] += ((y[va] - pred) ** 2).sum(axis=0)
+    return np.asarray(alphas, dtype=float)[sse.argmin(axis=0)]
+
+
+def early_stopping_split(n: int, groups, cfg: CVConfig) -> tuple[np.ndarray, np.ndarray]:
+    if groups is not None:
+        splitter = GroupShuffleSplit(1, test_size=cfg.lgbm_holdout, random_state=cfg.seed)
+        return next(splitter.split(np.zeros(n), groups=groups))
+    splitter = ShuffleSplit(1, test_size=cfg.lgbm_holdout, random_state=cfg.seed)
+    return next(splitter.split(np.zeros(n)))
+
+
 def _fit_heads(z, y_fit, groups, cfg: CVConfig) -> list:
     if cfg.head == "ridge":
-        model = RidgeCV(alphas=cfg.ridge_alphas, alpha_per_target=True)
-        model.fit(z, y_fit)
-        return [model]
+        alphas = select_ridge_alphas(z, y_fit, groups, cfg.ridge_alphas, cfg.seed)
+        return [Ridge(alpha=alphas).fit(z, y_fit)]
 
     import lightgbm as lgb
 
-    if groups is not None:
-        splitter = GroupShuffleSplit(1, test_size=cfg.lgbm_holdout, random_state=cfg.seed)
-        tr, es = next(splitter.split(z, groups=groups))
-    else:
-        splitter = ShuffleSplit(1, test_size=cfg.lgbm_holdout, random_state=cfg.seed)
-        tr, es = next(splitter.split(z))
+    # A few hundred rows: extra threads only add OpenMP start-up cost.
+    params = {"n_jobs": 1, **cfg.lgbm_params, "random_state": cfg.seed, "verbose": -1}
+    tr, es = early_stopping_split(len(z), groups, cfg)
     heads = []
     for j in range(y_fit.shape[1]):
-        model = lgb.LGBMRegressor(**cfg.lgbm_params, random_state=cfg.seed, verbose=-1)
-        model.fit(
+        probe = lgb.LGBMRegressor(**params)
+        probe.fit(
             z[tr],
             y_fit[tr, j],
             eval_X=(z[es],),
             eval_y=(y_fit[es, j],),
             callbacks=[lgb.early_stopping(cfg.lgbm_early_stopping, verbose=False)],
         )
-        heads.append(model)
+        # The hold-out only picks the number of trees; the final model uses all rows.
+        n_trees = probe.best_iteration_ or params.get("n_estimators", 100)
+        heads.append(lgb.LGBMRegressor(**{**params, "n_estimators": n_trees}).fit(z, y_fit[:, j]))
     return heads
 
 
 def _predict_heads(heads: list, z: np.ndarray, cfg: CVConfig) -> np.ndarray:
     if cfg.head == "ridge":
         return heads[0].predict(z)
-    return np.column_stack([h.predict(z, num_iteration=h.best_iteration_) for h in heads])
+    return np.column_stack([h.predict(z) for h in heads])
 
 
 def fit_fold(X, Y, train_idx, cfg: CVConfig, groups=None) -> FoldModel:

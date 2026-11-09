@@ -40,3 +40,25 @@ def test_non_negative_combination_keeps_identities():
     preds = [rng.gamma(2.0, 10.0, size=(20, 3)) @ A.T for _ in range(3)]
     out = combine(preds, np.array([0.2, 0.5, 0.7]))
     assert np.abs(constraint_residuals(out)).max() < 1e-9
+
+
+@pytest.mark.parametrize("method", ["best", "crossfit_nnls"])
+def test_held_out_rows_do_not_influence_their_own_weights(setup, method):
+    y, preds, folds = setup
+    before = ensemble_oof(preds, y, folds, method)["oof"]
+    y_changed = y.copy()
+    y_changed[folds == 0] *= 3.0
+    after = ensemble_oof(preds, y_changed, folds, method)["oof"]
+    np.testing.assert_array_equal(before[folds == 0], after[folds == 0])
+
+
+def test_best_is_chosen_on_the_other_folds():
+    # Model 0 is perfect on fold 0 only; elsewhere model 1 is better, so fold 0
+    # must still get model 1.
+    rng = np.random.default_rng(2)
+    y = rng.gamma(2.0, 10.0, size=(50, 3)) @ A.T
+    folds = np.arange(50) % 5
+    m0 = np.where((folds == 0)[:, None], y, y * 2.0)
+    m1 = y * 1.1
+    oof = ensemble_oof([m0, m1], y, folds, "best")["oof"]
+    np.testing.assert_allclose(oof[folds == 0], m1[folds == 0])

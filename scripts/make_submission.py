@@ -17,6 +17,8 @@ from biomass.ensemble import METHODS, combine, ensemble_oof
 from biomass.pipeline import load_run
 from biomass.submit import make_submission, validate_submission
 
+IDENTITY_TOL = 1e-6  # grams
+
 
 def ensemble_runs(runs: list[dict], y: np.ndarray, method: str) -> tuple[np.ndarray, dict]:
     """Weights are learned per seed column and averaged; the OOF score is reported per seed."""
@@ -63,8 +65,11 @@ def main(argv: list[str] | None = None) -> None:
             f" weights {np.round(info['weights'], 3).tolist()}"
         )
 
-    sub = make_submission(test_long, runs[0]["test_ids"], test)
-    stats = validate_submission(sub, test_long)
+    # Every formulation except "independent" yields outputs that satisfy the identities.
+    enforced = all(r["config"]["model"]["formulation"] != "independent" for r in runs)
+    tol = IDENTITY_TOL if enforced else None
+    sub = make_submission(test_long, runs[0]["test_ids"], test, identity_tol=tol)
+    stats = validate_submission(sub, test_long, identity_tol=tol)
     sub.to_csv(args.out, index=False)
     print(f"wrote {args.out}: {stats}")
 

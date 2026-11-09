@@ -2,7 +2,11 @@
 
 Images are random noise whose share of green / brown pixels follows the
 synthetic biomass values, so that even simple colour features carry signal.
-The numbers have nothing to do with the real data.
+Each sampling date also gets a colour cast and a hidden scale factor on the
+recorded targets: the cast identifies the date, the factor is not visible in
+the pixel shares, so a random KFold can learn it from same-date neighbours
+while a date-grouped CV cannot. The numbers have nothing to do with the real
+data.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from biomass.constraints import A
 from biomass.data import TARGETS, make_sample_id
 
 
-def _image(rng: np.random.Generator, green: float, dead: float, clover: float, size):
+def _image(rng: np.random.Generator, green: float, dead: float, clover: float, size, cast):
     w, h = size
     total = green + dead + clover
     p_green = (green + clover) / (total + 20.0)
@@ -27,7 +31,7 @@ def _image(rng: np.random.Generator, green: float, dead: float, clover: float, s
     img[:] = (0.35, 0.28, 0.20)  # soil
     img[u < p_green + p_dead] = (0.62, 0.55, 0.35)  # dead material
     img[u < p_green] = (0.20, 0.55, 0.18)  # green material
-    img += rng.normal(0, 0.04, img.shape)
+    img += np.asarray(cast) + rng.normal(0, 0.04, img.shape)
     return Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8))
 
 
@@ -44,8 +48,12 @@ def make_synthetic_dataset(
     (root / "train").mkdir(parents=True, exist_ok=True)
     (root / "test").mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
-    dates = pd.date_range("2015-01-15", periods=n_dates, freq="37D").strftime("%Y/%m/%d")
+    # Ten days apart, two consecutive visits per site: months hold several dates
+    # and month x State groups are coarser than dates.
+    dates = pd.date_range("2015-01-15", periods=n_dates, freq="10D").strftime("%Y/%m/%d")
     states = ["StateA", "StateB", "StateC"]
+    date_cast = rng.normal(0, 0.05, size=(n_dates, 3))
+    date_factor = rng.uniform(0.6, 1.5, size=n_dates)
 
     train_rows = []
     for i in range(n_train):
@@ -59,16 +67,16 @@ def make_synthetic_dataset(
                 rng.gamma(1.0, 5.0) * (rng.random() < 0.6),
             ]
         )
-        y = A @ comps
+        y = A @ (comps * date_factor[date_idx])
         rel = f"train/{image_id}.jpg"
-        _image(rng, *comps, image_size).save(root / rel, quality=90)
+        _image(rng, *comps, image_size, date_cast[date_idx]).save(root / rel, quality=90)
         for t, v in zip(TARGETS, y, strict=True):
             train_rows.append(
                 {
                     "sample_id": make_sample_id(image_id, t),
                     "image_path": rel,
                     "Sampling_Date": dates[date_idx],
-                    "State": states[date_idx % len(states)],
+                    "State": states[(date_idx // 2) % len(states)],
                     "Species": "Ryegrass_Clover",
                     "Pre_GSHH_NDVI": round(float(rng.uniform(0.3, 0.9)), 2),
                     "Height_Ave_cm": round(float(rng.uniform(1, 20)), 1),
@@ -83,7 +91,8 @@ def make_synthetic_dataset(
         image_id = f"ID{2000000 + i}"
         comps = np.array([rng.gamma(2.0, 15.0), rng.gamma(1.5, 10.0), rng.gamma(1.0, 5.0)])
         rel = f"test/{image_id}.jpg"
-        _image(rng, *comps, image_size).save(root / rel, quality=90)
+        cast = rng.normal(0, 0.05, size=3)
+        _image(rng, *comps, image_size, cast).save(root / rel, quality=90)
         for t in TARGETS:
             test_rows.append(
                 {"sample_id": make_sample_id(image_id, t), "image_path": rel, "target_name": t}

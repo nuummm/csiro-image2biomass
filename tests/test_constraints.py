@@ -64,6 +64,15 @@ def test_diff_derives_children_by_subtraction():
     np.testing.assert_allclose(out, [[45.0, 40.0, 15.0, 60.0, 100.0]])
 
 
+def test_diff_rebuilds_parents_when_a_difference_is_negative():
+    fitted = np.array([[50.0, 30.0, 40.0]])  # GDM < Green and Total < Green + Clover
+    out = compose("diff", fitted)
+    # Clover -> 0, GDM rebuilt as 40; Dead = 50 - 40 = 10.
+    np.testing.assert_allclose(out, [[40.0, 10.0, 0.0, 40.0, 50.0]])
+    fitted = np.array([[30.0, 50.0, 40.0]])  # Total < GDM
+    np.testing.assert_allclose(compose("diff", fitted), [[40.0, 0.0, 10.0, 50.0, 50.0]])
+
+
 @pytest.mark.parametrize("formulation", ENFORCING)
 def test_constraints_hold_on_raw_scale_after_expm1(formulation):
     rng = np.random.default_rng(3)

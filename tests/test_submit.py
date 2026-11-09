@@ -62,6 +62,15 @@ def test_invalid_submissions_are_rejected(test_long, preds, corrupt):
         validate_submission(corrupt(sub), test_long)
 
 
+def test_identity_check_is_opt_in(test_long, preds):
+    broken = preds.copy()
+    broken[0, 3] += 1.0  # GDM no longer equals Green + Clover
+    sub = make_submission(test_long, ["ID1", "ID2", "ID3"], broken)
+    assert validate_submission(sub, test_long)["max_constraint_residual"] == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="identities"):
+        validate_submission(sub, test_long, identity_tol=1e-6)
+
+
 def test_missing_image_prediction_is_rejected(test_long, preds):
     with pytest.raises(ValueError):
         make_submission(test_long, ["ID1", "ID2", "ID9"], preds)
