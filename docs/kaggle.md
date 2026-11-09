@@ -6,9 +6,9 @@ The competition is a code competition: the submission notebook runs with interne
 
 1. **Code**: upload this repository as a private Kaggle Dataset (or attach it from GitHub).
 2. **Backbone weights**: in a notebook with internet enabled, download the backbone once and save it as a **private** Kaggle Dataset.
-   - DINOv3 (timm): save the checkpoint file (e.g. `model.safetensors` from the timm hub repo). Keep it private: the DINOv3 License does not allow re-publishing the weights.
+   - DINOv3 (timm): save the checkpoint file (e.g. `model.safetensors` from the timm hub repo). Keep the dataset private; any redistribution of the weights is subject to the terms of the DINOv3 License.
    - SigLIP (transformers): `SiglipVisionModel.from_pretrained(...).save_pretrained(<dir>)` and upload `<dir>`.
-3. **Python packages**: the Kaggle image already has torch, timm, transformers, scikit-learn and LightGBM. If a newer timm is needed for DINOv3, add its wheel to a dataset and install it with `pip install --no-index --find-links <wheel dir> timm`.
+3. **Python packages**: the Kaggle image already has torch, timm, transformers, scikit-learn and LightGBM. `pyproject.toml` requires LightGBM ≥ 4.7 (the `eval_X` / `eval_y` arguments of `fit`) and a timm recent enough to include DINOv3; if the image has older versions, add the wheels to a dataset and install them with `pip install --no-index --find-links <wheel dir> timm lightgbm`.
 
 ## Submission notebook (internet off)
 
