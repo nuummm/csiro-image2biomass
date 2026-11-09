@@ -181,7 +181,7 @@ The synthetic images are noise whose colours follow made-up targets; the scores 
 
 ## Background
 
-My bronze-medal submission to Kaggle CSIRO Image2Biomass (253rd of 3,805 teams, private LB 0.61366, solo) was built by combining public notebooks of the competition. This repository does not use that submission, or the code or weights of those notebooks: it is an independent implementation written anew after the competition, and every number it reports comes from its own code, so its results are not comparable to that submission. Several modelling ideas used here also appear in the competition's public notebooks; [CREDITS.md](CREDITS.md) lists them.
+My bronze-medal submission to Kaggle CSIRO Image2Biomass (253rd of 3,805 teams, private LB 0.61366, solo) is not part of this repository: this is an independent implementation written anew after the competition, and every number it reports comes from its own code, so its results are not comparable to that submission. Several modelling ideas used here also appear in the competition's public notebooks; [CREDITS.md](CREDITS.md) lists them.
 
 ## Limitations and future work
 
@@ -224,4 +224,4 @@ Code: MIT, see [LICENSE](LICENSE). References for the methods are in [CREDITS.md
 
 ## 日本語要約
 
-牧草の真上写真から 5 種類のバイオマス量を推定する Kaggle コンペ（CSIRO Image2Biomass）を題材に、凍結した DINOv3（ViT-B/16）の埋め込みと軽い回帰ヘッドで学習パイプラインを実装したものです。日付でグループ化した CV と通常の KFold の差、ターゲット間の加法関係の 4 通りの扱い方、OOF に基づくアンサンブルを比較できるようにしています。コンペでは銅メダル（253 位 / 3,805 チーム、private 0.61366、個人参加）で、その提出は公開ノートブックを組み合わせたものでした。この repo はその提出や公開ノートブックのコード・重みを使わずにコンペ後に新しく書いた独立実装で、数値はすべてこの repo のコードによるものです（コンペ提出とは比較できません）。公開ノートブックにも見られるアイデアは CREDITS.md に記載しています。学習データ 357 枚での OOF 評価（5 fold × 3 seed、平均 ± 標準偏差）では、基本構成（Ridge、log1p、NNLS 射影）が日付グループ CV で 0.736 ± 0.011、ランダム KFold で 0.812 ± 0.008 となり、ランダム分割は約 0.08 高く見積もられました。NNLS 射影は 5 ターゲット独立予測（0.722 ± 0.010）を上回り、スタッキング（0.737 ± 0.011）は単体モデルと差がありませんでした。隠しテストセットでの評価はしていません。
+牧草の真上写真から 5 種類のバイオマス量を推定する Kaggle コンペ（CSIRO Image2Biomass）を題材に、凍結した DINOv3（ViT-B/16）の埋め込みと軽い回帰ヘッドで学習パイプラインを実装したものです。日付でグループ化した CV と通常の KFold の差、ターゲット間の加法関係の 4 通りの扱い方、OOF に基づくアンサンブルを比較できるようにしています。コンペでは銅メダル（253 位 / 3,805 チーム、private 0.61366、個人参加）でした。この repo はコンペ後に新しく書いた独立実装で、数値はすべてこの repo のコードによるものです（コンペ提出とは比較できません）。公開ノートブックにも見られるアイデアは CREDITS.md に記載しています。学習データ 357 枚での OOF 評価（5 fold × 3 seed、平均 ± 標準偏差）では、基本構成（Ridge、log1p、NNLS 射影）が日付グループ CV で 0.736 ± 0.011、ランダム KFold で 0.812 ± 0.008 となり、ランダム分割は約 0.08 高く見積もられました。NNLS 射影は 5 ターゲット独立予測（0.722 ± 0.010）を上回り、スタッキング（0.737 ± 0.011）は単体モデルと差がありませんでした。隠しテストセットでの評価はしていません。
