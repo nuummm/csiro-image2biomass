@@ -88,6 +88,21 @@ def save_run(run_dir: Path, cfg: dict, result: dict, image_ids, test_ids, fold_t
         (run_dir / "test_ids.txt").write_text("\n".join(test_ids) + "\n")
 
 
+def is_current(run_dir: str | Path, cfg: dict, image_ids: list[str]) -> bool:
+    """True if ``run_dir`` holds results for exactly this config and training set.
+
+    The run name only encodes the main axes, so seeds, fold count, PCA size or a
+    different dataset would otherwise silently reuse an old run.
+    """
+    run_dir = Path(run_dir)
+    if not (run_dir / "summary.json").exists():
+        return False
+    if json.loads((run_dir / "config.json").read_text()) != json.loads(json.dumps(cfg)):
+        return False
+    saved_ids = pd.read_csv(run_dir / "folds.csv", usecols=["image_id"])["image_id"].tolist()
+    return saved_ids == list(image_ids)
+
+
 def load_run(run_dir: str | Path) -> dict:
     run_dir = Path(run_dir)
     folds = pd.read_csv(run_dir / "folds.csv")

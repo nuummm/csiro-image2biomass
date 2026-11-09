@@ -22,7 +22,13 @@ from biomass.config import load_config  # noqa: E402
 from biomass.data import TARGETS, TOTAL, load_train, targets_matrix  # noqa: E402
 from biomass.ensemble import METHODS, ensemble_oof  # noqa: E402
 from biomass.metric import r2_per_target  # noqa: E402
-from biomass.pipeline import emb_file, load_run, run_experiment, run_name  # noqa: E402
+from biomass.pipeline import (  # noqa: E402
+    emb_file,
+    is_current,
+    load_run,
+    run_experiment,
+    run_name,
+)
 
 AXES = {
     "CV scheme": ("cv.scheme", ["kfold", "group_date", "group_month_state"]),
@@ -52,8 +58,9 @@ def get_run(cfg: dict, cache: dict, rerun: bool) -> dict | None:
         print(f"skip {name}: no cached embeddings")
         return None
     run_dir = Path(cfg["runs_dir"]) / name
+    image_ids = load_train(cfg.get("data_dir"))["image_id"].tolist()
     try:
-        if rerun or not (run_dir / "summary.json").exists():
+        if rerun or not is_current(run_dir, cfg, image_ids):
             print(f"run  {name}", flush=True)
             run_experiment(cfg, name=name)
     except ValueError as err:  # e.g. fewer groups than folds
@@ -112,7 +119,11 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--config", default="configs/base.yaml")
     ap.add_argument("--set", action="append", default=[])
     ap.add_argument("--report-dir", default="reports")
-    ap.add_argument("--rerun", action="store_true", help="ignore existing run directories")
+    ap.add_argument(
+        "--rerun",
+        action="store_true",
+        help="recompute every run (runs whose config or training images changed are always redone)",
+    )
     args = ap.parse_args(argv)
 
     base = load_config(args.config, args.set)

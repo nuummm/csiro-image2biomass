@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from biomass.data import load_train
+from biomass.pipeline import load_run
 from biomass.synthetic import make_synthetic_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,3 +90,33 @@ def test_run_all_writes_report(workspace):
     assert "## Output formulation" in text
     assert "## Ensembling" in text
     assert (tmp / "report/figures/cv_scheme.png").exists()
+
+
+def test_run_all_redoes_runs_whose_config_changed(workspace):
+    tmp, _, env, common = workspace
+    _run("extract_embeddings.py", *common, cwd=tmp, env=env)
+    _run("run_all.py", *common, "--report-dir", "report", cwd=tmp, env=env)
+    _run("run_all.py", *common, "--set", "cv.seeds=[7]", "--report-dir", "report", cwd=tmp, env=env)
+    run = load_run(tmp / "runs/color_stats-group_date-ridge-log1p-nnls")
+    assert run["config"]["cv"]["seeds"] == [7]
+    assert len(run["oof"]) == 1
+
+
+@pytest.mark.parametrize("method", ["mean", "best", "crossfit_nnls"])
+def test_submission_from_an_ensemble_of_runs(workspace, method):
+    tmp, data, env, common = workspace
+    _run("extract_embeddings.py", *common, cwd=tmp, env=env)
+    for formulation in ("nnls", "sum"):
+        name = f"ens_{formulation}"
+        if not (tmp / "runs" / name / "summary.json").exists():
+            _run(
+                "run_cv.py", *common, "--set", f"model.formulation={formulation}",
+                "--name", name, cwd=tmp, env=env,
+            )  # fmt: skip
+    out = f"submission_{method}.csv"
+    _run(
+        "make_submission.py", *common, "--runs", "runs/ens_nnls", "runs/ens_sum",
+        "--method", method, "--out", out, cwd=tmp, env=env,
+    )  # fmt: skip
+    sub = pd.read_csv(tmp / out)
+    assert sub["sample_id"].tolist() == pd.read_csv(data / "test.csv")["sample_id"].tolist()
