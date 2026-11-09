@@ -5,7 +5,7 @@ data_dir: null        # null -> $BIOMASS_DATA_DIR
 emb_dir: emb
 runs_dir: runs
 
-backbone: dinov3_large   # dinov3_large | dinov3_base | siglip_so400m | color_stats
+backbone: dinov3_base    # dinov3_base | dinov3_large | siglip_so400m | color_stats
 
 embed:
   split_halves: true     # cut the 2:1 image into two squares

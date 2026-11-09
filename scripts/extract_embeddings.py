@@ -1,6 +1,6 @@
 """Step 1: cache frozen-backbone features for train and test images.
 
-uv run python scripts/extract_embeddings.py --set backbone=dinov3_large
+uv run python scripts/extract_embeddings.py --set backbone=dinov3_base
 """
 
 from __future__ import annotations
