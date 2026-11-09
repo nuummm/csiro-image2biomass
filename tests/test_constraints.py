@@ -9,6 +9,7 @@ from biomass.constraints import (
     project_nnls,
 )
 from biomass.cv import CVConfig, predict_raw, to_model_space
+from biomass.data import weight_vector
 
 ENFORCING = ("sum", "diff", "nnls")
 
@@ -86,3 +87,17 @@ def test_constraints_hold_on_raw_scale_after_expm1(formulation):
     # The same composition applied in log space would not be additive after expm1.
     wrong = np.expm1(compose(formulation, log_pred))
     assert np.abs(constraint_residuals(wrong)).max() > 1e-3
+
+
+def test_projection_never_moves_away_from_a_feasible_truth():
+    # Projecting onto a convex set is non-expansive in the W-norm, so when the
+    # truth satisfies the identities the projected prediction is never farther from it.
+    rng = np.random.default_rng(5)
+    y = rng.gamma(2.0, 10.0, size=(500, 3)) @ A.T
+    y_hat = y + rng.normal(0, 15, size=y.shape)
+    w = weight_vector()
+
+    def err(p):
+        return (w * (p - y) ** 2).sum(axis=1)
+
+    assert (err(project_nnls(y_hat)) <= err(y_hat) + 1e-9).all()
